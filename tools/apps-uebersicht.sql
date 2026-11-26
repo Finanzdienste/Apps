@@ -177,7 +177,12 @@ begin
       from (select k.app, (k.zeit at time zone 'Europe/Berlin')::date t, kn.nr, count(*) n
             from fragmal_kosten k
             left join (select id, row_number() over (order by created_at) nr from auth.users) kn on kn.id = k.nutzer
-            where k.zeit >= ab group by 1, 2, 3) x), '[]'::jsonb)
+            where k.zeit >= ab group by 1, 2, 3) x), '[]'::jsonb),
+    -- Seit a7: wer in Boxenstopp an welchem Tag etwas geändert hat (boxenstopp_aktiv, unten)
+    'boxenstopp', coalesce((
+      select jsonb_agg(jsonb_build_object('wer', wer, 'liste', liste, 'tag', tag, 'anzahl', anzahl, 'zuletzt', zuletzt) order by wer, tag)
+      from boxenstopp_aktiv where tag >= ab), '[]'::jsonb),
+    'boxenstopp_stand', (select max(at) from boxenstopp_aktiv)
   );
 end $$;
 
@@ -221,3 +226,51 @@ begin
 end $$;
 revoke all on function mahlzeit_lesen(text) from public, anon, authenticated;
 grant execute on function mahlzeit_lesen(text) to anon;
+
+-- Meine Apps a7 (26.11.2026): Boxenstopp meldet auch Amy und Marielle.
+-- Tobi: „Boxenstopp soll natürlich auch marielle und Amy melden“. Boxenstopp
+-- weiß es schon: Im Dashboard auf Tobis Handy steht aus den Commits der
+-- Listen, wer wann was ändert – das wurde Amy und Marielle in der App gesagt
+-- („Tobi hat jetzt ein Dashboard … wann du was änderst“). Tobis Boxenstopp
+-- (js/aktiv-melden.js im Repo Boxenstopp) schickt davon nur die Zahl der
+-- Änderungen je Person und Tag, höchstens stündlich. Ersetzt wird je Liste
+-- ab p_von – so kommen Korrekturen an, und ein Gerät, das eine Gast-Liste
+-- nicht kennt, löscht deren Tage nicht.
+create table if not exists boxenstopp_aktiv (
+  wer text not null,
+  liste text not null,
+  tag date not null,
+  anzahl integer not null,
+  zuletzt timestamptz,
+  at timestamptz not null default now(),
+  primary key (wer, liste, tag)
+);
+comment on table boxenstopp_aktiv is 'Meine Apps a7: wer in Boxenstopp an welchem Tag wie viel geändert hat (aus dem Dashboard auf Tobis Handy). Lesen nur über apps_uebersicht(pass).';
+alter table boxenstopp_aktiv enable row level security;
+revoke all on table boxenstopp_aktiv from anon, authenticated;
+
+create or replace function boxenstopp_aktiv_melden(p_von date, p_listen jsonb, p_tage jsonb)
+returns integer
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  n integer;
+begin
+  if p_von is null or p_von < current_date - 70 or p_von > current_date + 1 then raise exception 'von'; end if;
+  if jsonb_typeof(p_listen) <> 'array' or jsonb_array_length(p_listen) > 30 then raise exception 'listen'; end if;
+  if jsonb_typeof(p_tage) <> 'array' or jsonb_array_length(p_tage) > 3000 then raise exception 'tage'; end if;
+  delete from boxenstopp_aktiv
+   where tag >= p_von and liste in (select left(x, 60) from jsonb_array_elements_text(p_listen) x);
+  insert into boxenstopp_aktiv (wer, liste, tag, anzahl, zuletzt)
+  select left(btrim(t->>'wer'), 40), left(t->>'liste', 60), (t->>'tag')::date,
+         least(greatest(coalesce((t->>'anzahl')::int, 0), 0), 100000),
+         case when (t->>'zuletzt') ~ '^\d{4}-\d{2}-\d{2}T' then (t->>'zuletzt')::timestamptz end
+  from jsonb_array_elements(p_tage) t
+  where coalesce(btrim(t->>'wer'), '') <> '' and coalesce(t->>'liste', '') <> ''
+    and case when (t->>'tag') ~ '^\d{4}-\d{2}-\d{2}$' then (t->>'tag')::date >= p_von else false end
+    and (t->>'liste') in (select x from jsonb_array_elements_text(p_listen) x)
+  on conflict (wer, liste, tag) do update set anzahl = excluded.anzahl, zuletzt = excluded.zuletzt, at = now();
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke all on function boxenstopp_aktiv_melden(date, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function boxenstopp_aktiv_melden(date, jsonb, jsonb) to anon;

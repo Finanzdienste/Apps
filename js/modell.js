@@ -30,8 +30,7 @@ export const APPS = [
   },
   {
     id: 'boxenstopp', name: 'Boxenstopp', pfad: '../Boxenstopp/', farbe: '#2e8b57',
-    quelle: 'Bildschirmzeit-Widget und KI-Anfragen',
-    blind: 'Amy und Marielle meldet Boxenstopp nicht – hier steht nur, was dein Widget misst.',
+    quelle: 'Bildschirmzeit-Widget, wer in den Listen etwas ändert (aus deinem Boxenstopp) und KI-Anfragen',
   },
   {
     id: 'bewerbungszentrale', name: 'Bewerbungszentrale', pfad: '../Bewerbungszentrale/', farbe: '#3b6fd4',
@@ -275,6 +274,25 @@ export function auswerten(daten, heute = tagAus(daten && daten.heute) || tagAus(
     apps.get('boxenstopp').zeilen.push(kiBox.n
       ? `KI: ${mehrzahl(kiBox.n, 'Anfrage', 'Anfragen')} in ${TAGE} Tagen, zuletzt ${wann(kiBox.zuletzt, heute)}`
       : `KI: zuletzt am ${datumKurz(kiBox.zuletzt)}`);
+  }
+
+  // Boxenstopp (a7): wer an welchem Tag in den Listen etwas geändert hat – aus
+  // dem Dashboard auf Tobis Handy (boxenstopp_aktiv). Öffnen allein sieht man
+  // dort nicht, nur Ändern.
+  const aenderungen = new Map();
+  liste(d.boxenstopp).forEach((z) => {
+    const p = person('boxenstopp', text(z.wer));
+    const tag = tagAus(z.tag);
+    merke(p, tag);
+    if (p && imFenster.has(tag)) aenderungen.set(p, (aenderungen.get(p) || 0) + zahl(z.anzahl));
+    if (p && String(z.liste || '').startsWith('gast:') && !p.notiz.includes('eigene Liste')) p.notiz.push('eigene Liste');
+  });
+  aenderungen.forEach((n, p) => { if (n) p.notiz.unshift(`${mehrzahl(n, 'Änderung', 'Änderungen')} in ${TAGE} Tagen`); });
+  const boxStand = tagAus(d.boxenstopp_stand);
+  if (!boxStand) {
+    apps.get('boxenstopp').zeilen.push('Wer in den Listen etwas ändert, meldet Boxenstopp auf deinem Handy (ab Fassung v100) – noch nichts angekommen.');
+  } else if (abstand(boxStand, heute) > 2) {
+    apps.get('boxenstopp').zeilen.push(`Listen zuletzt abgeglichen am ${datumKurz(boxStand)} – das kommt, sobald Boxenstopp auf deinem Handy offen ist.`);
   }
 
   // Das Widget: wann es zuletzt Zahlen geholt hat.

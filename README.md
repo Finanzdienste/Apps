@@ -40,6 +40,46 @@ App. Die Workout-App ist auf Tobis Handy installiert, also hätte Chrome nur
 
 Die App bleibt in der App-Übersicht (vom Startbildschirm nach oben wischen).
 
+## Boxenstopp: Amy und Marielle (a7)
+
+> Tobi, 26.11.2026: *„Boxenstopp soll natürlich auch marielle und Amy melden“*
+
+**Vorher:** Auf der Karte Boxenstopp stand nur, was dein Bildschirmzeit-Widget
+misst, also du, dazu „Amy und Marielle meldet Boxenstopp nicht“.
+
+**Jetzt:** Je Person steht da, an welchen Tagen sie in Boxenstopp etwas
+geändert hat, etwa „Amy · heute · an 2 von 14 Tagen · 5 Änderungen in 14
+Tagen“ oder „Marielle · vor 2 Tagen · eigene Liste“. Du bist eine Person, aus
+Widget und Listen zusammen.
+
+**Woher:** Neu erhoben wird nichts:
+- Das Dashboard in Boxenstopp (Einstellungen → Gäste & Überblick) liest auf
+  deinem Handy schon aus den Commits der Listen, wer wann was ändert.
+- Amy und Marielle hat Boxenstopp das einmal gesagt: „Tobi hat jetzt ein
+  Dashboard … wann du was änderst“.
+- Seit Boxenstopp v100 (`js/aktiv-melden.js` dort) schickt **nur dein
+  Gerät** davon die Zahl der Änderungen je Person und Tag an
+  `boxenstopp_aktiv_melden`. Was geändert wurde, geht nicht mit.
+- Das passiert höchstens stündlich, wenn Boxenstopp offen ist. Kommt der
+  Verlauf einer Liste gerade nicht, wird sie nicht gemeldet, statt ihre Tage
+  zu leeren.
+- Die Funktion ersetzt je Liste die Tage ab `p_von` in `boxenstopp_aktiv`.
+
+**Was man nicht sieht:** Wer Boxenstopp nur öffnet und nichts ändert, steht hier
+nicht. Ist der Stand älter als zwei Tage, sagt die Karte das: „Listen zuletzt
+abgeglichen am … – das kommt, sobald Boxenstopp auf deinem Handy offen ist.“
+
+Geprüft in `tests/test-apps.mjs`:
+- Amy, Marielle (eigene Liste), Tobi als eine Person
+- der Hinweis bei altem und fehlendem Stand
+
+In Boxenstopp geprüft in `tests/test-aktiv.mjs`:
+- nur Zahlen
+- nur Tobis Gerät
+- nicht öfter als stündlich
+- ohne Netz nichts gemerkt, mit `online` nachgeholt
+- eine Liste ohne Verlauf wird nicht gemeldet
+
 ## Aufbau
 
 | Datei | Aufgabe |
@@ -51,7 +91,7 @@ Die App bleibt in der App-Übersicht (vom Startbildschirm nach oben wischen).
 | `js/werte.js` | Uwes Werte und Essen aus Mahlzeit, nach Tagen |
 | `js/bodycheck-woerter.js` | Namen zu den Kennungen von Body Check, erzeugt von `node tools/bodycheck-woerter.mjs <Klon von Bauchbuch>` |
 | `sw.js` | offline: Hülle im Vorrat `meineapps-<VERSION>`, Symbole der anderen Apps in `meineapps-bilder` |
-| `tools/apps-uebersicht.sql` | die Funktionen in Supabase (`apps_uebersicht`, `apps_tag` mit Triggern, `mahlzeit_lesen`) |
+| `tools/apps-uebersicht.sql` | die Funktionen in Supabase (`apps_uebersicht`, `apps_tag` mit Triggern, `mahlzeit_lesen`, `boxenstopp_aktiv_melden`) |
 | `tools/apps-icons.mjs` | die PNG-Symbole aus `icon.svg` |
 | `tests/test-apps.mjs` | der Test (Supabase gespielt, Server wirklich aus) |
 

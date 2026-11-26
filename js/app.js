@@ -18,7 +18,7 @@
  */
 import { auswerten, zusammenfassung, dauer, datumKurz, tagAus, uhrAus, letzteTage, TAGE } from './modell.js';
 
-export const FASSUNG = 'a6';
+export const FASSUNG = 'a7';
 
 const SERVER = {
   url: 'https://vjyohppohmvhhxgwouti.supabase.co',

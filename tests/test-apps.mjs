@@ -95,6 +95,13 @@ function zahlen(heute) {
       { nr: 1, angelegt: `${v(14)}T07:00:00Z`, zuletzt: `${v(14)}T19:47:00Z` },
       { nr: 2, angelegt: `${v(14)}T07:00:00Z`, zuletzt: `${v(13)}T18:19:00Z` },
     ],
+    boxenstopp: [
+      { wer: 'Amy', liste: 'haupt', tag: v(0), anzahl: 3, zuletzt: `${heute}T09:00:00Z` },
+      { wer: 'Amy', liste: 'haupt', tag: v(3), anzahl: 2, zuletzt: `${heute}T09:00:00Z` },
+      { wer: 'Marielle', liste: 'gast:Marielle', tag: v(2), anzahl: 1, zuletzt: `${v(2)}T18:00:00Z` },
+      { wer: 'Tobi', liste: 'haupt', tag: v(1), anzahl: 4, zuletzt: `${v(1)}T20:00:00Z` },
+    ],
+    boxenstopp_stand: `${heute}T10:00:00Z`,
     fragmal: [
       { app: 'boxenstopp', konto: null, tag: v(10), n: 23 },
       { app: 'boxenstopp', konto: null, tag: v(9), n: 6 },
@@ -165,7 +172,18 @@ check(app('workout').streifen[13].sekunden === 1500 && app('workout').streifen[1
 
 check(app('bewerbungszentrale').zuletzt === vor(5) && app('bewerbungszentrale').stufe === 'mittel', 'Bewerbungszentrale: ein Tag mit 0 Sekunden zählt nicht – zuletzt vor 5 Tagen, gelb');
 check(app('boxenstopp').zeilen.some((z) => z === 'KI: 29 Anfragen in 14 Tagen, zuletzt vor 9 Tagen'), `Boxenstopp: KI-Anfragen (${app('boxenstopp').zeilen.join(' | ')})`);
-check(!!app('boxenstopp').blind, 'Boxenstopp sagt, was es nicht sieht (Amy, Marielle)');
+const amyBox = app('boxenstopp').leute.find((p) => p.name === 'Amy');
+const marBox = app('boxenstopp').leute.find((p) => p.name === 'Marielle');
+const tobiBox = app('boxenstopp').leute.find((p) => p.name === 'Tobi');
+check(amyBox && amyBox.wann === 'heute' && amyBox.tage === 2 && amyBox.notiz[0] === '5 Änderungen in 14 Tagen', `Boxenstopp: Amy heute, an 2 Tagen, 5 Änderungen (${amyBox && amyBox.notiz.join(' · ')})`);
+check(marBox && marBox.wann === 'vor 2 Tagen' && marBox.notiz.includes('eigene Liste'), 'Boxenstopp: Marielle vor 2 Tagen, eigene Liste');
+check(app('boxenstopp').leute.filter((p) => p.name === 'Tobi').length === 1 && tobiBox.tage === 1 && tobiBox.sekunden === 300 && tobiBox.notiz[0] === '4 Änderungen in 14 Tagen', 'Boxenstopp: Tobi aus Widget und Listen ist eine Person (gestern beides, ein Tag)');
+check(app('boxenstopp').zuletzt === H && !app('boxenstopp').blind, 'Boxenstopp: heute (Amy), kein „blind“ mehr');
+check(!app('boxenstopp').zeilen.some((z) => z.includes('abgeglichen') || z.includes('noch nichts')), 'Stand von heute: kein Hinweis');
+const altStand = M.auswerten({ ...zahlen(H), boxenstopp_stand: `${vor(5)}T10:00:00Z` }, H).find((a) => a.id === 'boxenstopp');
+check(altStand.zeilen.some((z) => z === `Listen zuletzt abgeglichen am ${M.datumKurz(vor(5))} – das kommt, sobald Boxenstopp auf deinem Handy offen ist.`), 'Stand älter als 2 Tage: der Hinweis');
+const ohneStand = M.auswerten({ ...zahlen(H), boxenstopp: [], boxenstopp_stand: null }, H).find((a) => a.id === 'boxenstopp');
+check(ohneStand.zeilen.some((z) => z.includes('noch nichts angekommen')), 'noch nie gemeldet: der Hinweis');
 
 const uwe = app('mahlzeit').leute.find((p) => p.name === 'Uwe');
 check(uwe && uwe.wann === 'heute' && uwe.tage === 2 && uwe.notiz.includes('7 Einträge in 14 Tagen'), `Mahlzeit: Uwe heute, an 2 Tagen, 7 Einträge (${uwe && uwe.notiz.join(' · ')})`);
@@ -348,7 +366,8 @@ check(await page.evaluate(() => !window.__boese2) && tbText.includes('<img src=x
 await page.click('#neu');
 await page.waitForFunction(() => !document.querySelector('#stand').textContent.includes('lädt'));
 check(await bcKarte.locator('details.tagebuch').evaluate((d) => d.open), 'nach dem Nachladen bleibt das Tagebuch aufgeklappt');
-check((await page.locator('article[data-app="boxenstopp"]').textContent()).includes('Amy und Marielle'), 'Boxenstopp sagt, wen es nicht sieht');
+const boxText = await page.locator('article[data-app="boxenstopp"]').textContent();
+check(boxText.includes('Amy') && boxText.includes('Marielle') && boxText.includes('Änderungen in 14 Tagen'), 'Boxenstopp zeigt Amy und Marielle');
 check((await page.locator('article[data-app="mahlzeit"]').textContent()).includes('Uwe'), 'Mahlzeit: Uwe');
 const widget = page.locator('article[data-app="widget"]');
 check(await widget.locator('.streifen').count() === 0 && !(await widget.textContent()).includes('von 14 Tagen'), 'Widget: kein Streifen – der Server kennt nur den letzten Abruf');
