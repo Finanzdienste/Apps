@@ -49,6 +49,16 @@ check(/startsWith\('meineapps-'\)/.test(sw.match(/addEventListener\('activate'[\
 const pfade = M0.APPS.filter((a) => a.pfad).map((a) => a.pfad);
 check(pfade.every((p) => /^\.\.\/[A-Z][A-Za-z]+\/([a-z]+\/)?$/.test(p)) && pfade.includes('../Workout/mahlzeit/'), `die anderen Apps relativ zu /Apps/ (${pfade.join(', ')})`);
 
+// --- Ohne Browser: das SQL – keine Kennung eines echten Handys (Mahlzeit v19)
+// Bis zum 27.11. stand die Kennung von Uwes Handy fest in apps_wer und mahlzeit_lesen; mit ihr ließ sich
+// überschreiben, was bei Tobi ankommt. Wem ein Gerät gehört, steht nur noch in mahlzeit_name (Datenbank).
+const sql = readFileSync(path.join(ROOT, 'tools', 'apps-uebersicht.sql'), 'utf8');
+const kennungen = [...sql.matchAll(/'([a-z0-9]{8,24})'/g)].map((m) => m[1]).filter((k) => /\d/.test(k) && /[a-z]/.test(k) && k !== 'testclaude01');
+check(!kennungen.length, `im SQL keine Geräte-Kennung als Text${kennungen.length ? ` – gefunden: ${kennungen.length}` : ''}`);
+check(/when app = 'mahlzeit' then coalesce\(\(select m\.name from mahlzeit_name m where m\.geraet = kennung\)/.test(sql)
+  && /order by exists \(select 1 from mahlzeit_name m where m\.geraet = g\.geraet\) desc/.test(sql)
+  && /function apps_wer\([^)]*\)\s*returns text\s*language sql stable/.test(sql), 'apps_wer und mahlzeit_lesen fragen mahlzeit_name (apps_wer stable)');
+
 // --- Ohne Browser: das Rechnen
 const M = await import(path.join(ORDNER, 'js', 'modell.js'));
 const H = '2026-11-25';

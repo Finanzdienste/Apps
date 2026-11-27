@@ -19,7 +19,8 @@
 -- Einspielen: Supabase → SQL Editor → am Stück ausführen. Wiederholbar: legt
 -- nichts doppelt an und löscht keine Zeilen. Voraussetzung ist admin_liste(text)
 -- aus der Einrichtung der Workout-App – dasselbe Passwort, es steht auch hier
--- nicht.
+-- nicht –, und die Tabellen der anderen Apps, darunter mahlzeit_name aus
+-- mahlzeit/supabase/geraet.sql im Repo Workout.
 
 create table if not exists apps_tag (
   app text not null,
@@ -33,13 +34,21 @@ revoke all on table apps_tag from anon, authenticated;
 
 -- Wer: nie die Kennung selbst. Mit der Kennung eines Geräts ließe sich dessen
 -- Zeile löschen oder überschreiben; die Übersicht braucht nur etwas Stabiles.
+--
+-- Wem ein Mahlzeit-Gerät gehört (Uwe), steht seit Mahlzeit v19 (27.11.2026) nur
+-- in der Datenbank: Tabelle mahlzeit_name, angelegt in
+-- mahlzeit/supabase/geraet.sql im Repo Workout. Bis dahin stand die Kennung
+-- von Uwes Handy hier fest im Code – in einem öffentlichen Repo, und mit ihr
+-- ließ sich überschreiben, was bei Tobi ankommt. Hier steht deshalb keine
+-- Kennung eines echten Handys (tests/test-apps.mjs prüft das). Weil die
+-- Funktion nachschlägt, ist sie stable statt immutable.
 create or replace function apps_wer(app text, kennung text, name text default null)
 returns text
-language sql immutable set search_path = public, pg_temp as $$
+language sql stable set search_path = public, pg_temp as $$
   select case
     when app = 'workout' then coalesce(nullif(btrim(name), ''), 'Gerät ' || left(kennung, 4))
     when app = 'schilddruese' then 'Gerät ' || left(kennung, 4)
-    when app = 'mahlzeit' then case when kennung = '0jhz8uo152qh' then 'Uwe' else 'Gerät ' || left(kennung, 4) end
+    when app = 'mahlzeit' then coalesce((select m.name from mahlzeit_name m where m.geraet = kennung), 'Gerät ' || left(kennung, 4))
     else left(md5(kennung), 12)
   end
 $$;
@@ -220,7 +229,7 @@ begin
                                                    'menge', e.menge, 'kcal', e.kcal, 'kh', e.kh, 'ei', e.ei, 'hafer', e.hafer)
                                 order by e.tag, e.at, e.id)
                from mahlzeit_essen e where e.geraet = g.geraet and e.tag >= ab), '[]'::jsonb))
-           order by (g.geraet = '0jhz8uo152qh') desc, g.geraet)
+           order by exists (select 1 from mahlzeit_name m where m.geraet = g.geraet) desc, g.geraet)
     from (select geraet from mahlzeit_werte union select geraet from mahlzeit_uhr union select geraet from mahlzeit_essen) g
     where g.geraet <> 'testclaude01'), '[]'::jsonb);
 end $$;

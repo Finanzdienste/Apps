@@ -165,6 +165,28 @@ Boxenstopp und den anderen Apps. `sw.js` füllt seinen Vorrat deshalb nach
 einem Seitenaufruf mit Netz neu, falls er fehlt. Behoben ist es erst, wenn die
 beiden nur noch ihre eigenen Vorräte wegräumen (offen, 25.11.).
 
+### Wer Uwe ist, steht nur in der Datenbank (27.11.2026)
+
+Bis zum 27.11. stand die Kennung von Uwes Handy fest in `apps_wer` und
+`mahlzeit_lesen` – in diesem öffentlichen Repo. Mit ihr ließ sich über
+`mahlzeit_werte_melden` überschreiben, was bei Tobi ankommt. Mahlzeit v19
+(Repo Workout, `mahlzeit/supabase/geraet.sql`) gibt jedem Handy eine neue
+Kennung und legt `mahlzeit_name` an: wem ein Gerät gehört, nur in der
+Datenbank.
+
+**Seitdem fragen beide Funktionen dort nach:**
+- `apps_wer`: `coalesce((select name from mahlzeit_name …), 'Gerät 1a2b')`,
+  jetzt `stable` statt `immutable`, weil sie nachschlägt.
+- `mahlzeit_lesen`: Geräte mit einem Namen stehen zuerst.
+
+Die Datenbank war schon umgestellt, bevor die Datei nachzog. Deshalb wurde die
+Datei bis dahin nicht wieder eingespielt; jetzt stimmen beide überein
+(geprüft über Prüfsummen der Funktionskörper).
+
+`tests/test-apps.mjs` prüft:
+- dass im SQL keine Geräte-Kennung als Text steht
+- dass beide Funktionen `mahlzeit_name` fragen
+
 ### Uwes Essen (Meine Apps a5)
 
 > Tobi, 26.11.2026: *„Ja ich will das essen auch sehen. In meiner Master
@@ -224,7 +246,7 @@ Tagebuch bei Body Check.
 [`tools/apps-uebersicht.sql`](tools/apps-uebersicht.sql), eingespielt am
 26.11., mit demselben Passwort über `admin_liste()`. Die Funktion gibt je Gerät
 die Werte der letzten 60 Tage aus `mahlzeit_werte` und `mahlzeit_uhr` zurück.
-Uwe steht zuerst, `testclaude01` fehlt. Ein Gerät, das nur Uhr-Zeilen hat und
+Geräte mit einem Namen in `mahlzeit_name` (Uwe) stehen zuerst, `testclaude01` fehlt. Ein Gerät, das nur Uhr-Zeilen hat und
 nicht Uwe ist, war ein Test und erscheint nicht.
 
 **Was Uwe isst, stand hier bis a4 nicht:** Mahlzeit schickte es nicht. In v13
